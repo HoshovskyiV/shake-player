@@ -152,13 +152,13 @@ if(dir!==0)lastDirection=dir;
 
 async function activate(){
 var btn=document.getElementById('startBtn');
-btn.textContent='...';
+btn.textContent='Зачекайте...';
 try{
 if(!audioCtx)await initAudio();
 if(audioCtx.state==='suspended')await audioCtx.resume();
-}catch(e){btn.textContent='error';return}
+}catch(e){btn.textContent='Помилка, спробуйте ще';return}
 if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
-try{var p=await DeviceMotionEvent.requestPermission();if(p!=='granted'){btn.textContent='motion denied';return}}catch(e){btn.textContent='perm error';return}
+try{var p=await DeviceMotionEvent.requestPermission();if(p!=='granted'){btn.textContent='Дозвіл не надано, спробуйте ще';return}}catch(e){btn.textContent='Дозвіл не надано, спробуйте ще';return}
 }
 frameImg.src=FRAME_B64_1;
 
