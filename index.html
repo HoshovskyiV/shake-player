@@ -1,4 +1,23 @@
 ﻿<!DOCTYPE html>
+<script>
+(function(){
+var ua=navigator.userAgent||'';
+var inApp=/FBAN|FBAV|Instagram|Telegram|Messenger/i.test(ua);
+if(inApp){
+var url=window.location.href;
+var opened=false;
+if(/iphone|ipad|ipod/i.test(ua)){
+window.location.href='x-safari-'+url;
+opened=true;
+}
+if(!opened){
+try{window.open(url,'_system');}catch(e){}
+}
+document.write('<html><body style="background:#000;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;margin:0"><div><p style="font-size:24px">\u0412\u0456\u0434\u043a\u0440\u0438\u0432\u0430\u0454\u043c\u043e \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0456...</p><p style="font-size:16px;opacity:0.6;margin-top:20px">\u042f\u043a\u0449\u043e \u043d\u0435 \u0432\u0456\u0434\u043a\u0440\u0438\u043b\u043e\u0441\u044c, \u043d\u0430\u0442\u0438\u0441\u043d\u0456\u0442\u044c \u2022\u2022\u2022 \u0456 \u0432\u0438\u0431\u0435\u0440\u0456\u0442\u044c "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u0438 \u0432 Safari"</p></div></body></html>');
+}
+})();
+</script>
+
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
