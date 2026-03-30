@@ -42,9 +42,15 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .mode-row{display:flex;gap:6px;margin-bottom:12px}
 .mode-btn{flex:1;padding:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;font-family:inherit;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent}
 .mode-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.hit-flash{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 0.15s}
+.hit-flash.s1{background:radial-gradient(circle at 50% 50%,#00e5ff20,transparent 70%)}
+.hit-flash.s2{background:radial-gradient(circle at 50% 50%,#ff6b3520,transparent 70%)}
+.hit-flash.on{opacity:1}
 </style>
 </head>
 <body>
+<div class="hit-flash s1" id="flash1"></div>
+<div class="hit-flash s2" id="flash2"></div>
 <div class="container">
 <div class="header">
 <h1>SHAKE PLAYER</h1>
@@ -82,21 +88,14 @@ var NORMAL_PHASE_MS=467;
 var CLIP_DURATION_MS=233;
 var MIN_PHASE_MS=100;
 var MAX_PHASE_MS=3000;
-var SHAKE_THRESHOLD=8;
-var DIR_CHANGE_THRESHOLD=5;
+var HIT_THRESHOLD=15;
+var HIT_COOLDOWN_MS=80;
 var audioCtx=null;
 var buffer1=null;
 var buffer2=null;
 var isRunning=false;
 var hitCount=0;
 var currentMode='shake';
-var lastAccel={x:0,y:0,z:0};
-var smoothAccel={x:0,y:0,z:0};
-var dominantAxis=null;
-var lastDominantVal=0;
-var lastDirection=0;
-var phaseStartTime=0;
-var halfPhaseCount=0;
 var currentPhaseDuration=NORMAL_PHASE_MS;
 var pendingSound=null;
 var timelineClips=[];
@@ -105,8 +104,8 @@ var canvas=document.getElementById('vizCanvas');
 var ctx2d=canvas.getContext('2d');
 var pendulumAngle=0;
 var targetAngle=0;
-var tapPhaseStart=0;
-var tapCount=0;
+var lastHitTime=0;
+var nextIsSound1=true;
 
 function b64toArrayBuffer(b64){var bin=atob(b64);var len=bin.length;var bytes=new Uint8Array(len);for(var i=0;i<len;i++){bytes[i]=bin.charCodeAt(i)}return bytes.buffer}
 
@@ -127,8 +126,14 @@ src.connect(audioCtx.destination);
 src.start(0);
 }
 
-function playSound1(){playSound(buffer1);flashTimeline(1)}
-function playSound2(){playSound(buffer2);flashTimeline(2)}
+function flash(n){
+var el=document.getElementById('flash'+n);
+el.classList.add('on');
+setTimeout(function(){el.classList.remove('on')},150);
+}
+
+function playSound1(){playSound(buffer1);flashTimeline(1);flash(1)}
+function playSound2(){playSound(buffer2);flashTimeline(2);flash(2)}
 
 function scheduleSound2(delayMs){
 if(pendingSound){clearTimeout(pendingSound);pendingSound=null}
@@ -142,12 +147,32 @@ if(ratio<=1){var overlap=(1-ratio)*CLIP_DURATION_MS;return Math.max(CLIP_DURATIO
 else{var gap=(ratio-1)*CLIP_DURATION_MS;return CLIP_DURATION_MS+gap}
 }
 
-function triggerHit(phaseDurationMs){
-currentPhaseDuration=Math.max(MIN_PHASE_MS,Math.min(MAX_PHASE_MS,phaseDurationMs));
+function onHit(){
+var now=performance.now();
+if(now-lastHitTime<HIT_COOLDOWN_MS)return;
+var timeSinceLast=now-lastHitTime;
+lastHitTime=now;
+hitCount++;
+if(hitCount===1){
+playSound1();
+nextIsSound1=false;
+updateStats();
+return;
+}
+currentPhaseDuration=Math.max(MIN_PHASE_MS,Math.min(MAX_PHASE_MS,timeSinceLast));
 var delay=computeDelay(currentPhaseDuration);
+if(nextIsSound1){
 playSound1();
 scheduleSound2(delay);
-hitCount++;
+}else{
+if(pendingSound){clearTimeout(pendingSound);pendingSound=null}
+playSound2();
+}
+nextIsSound1=!nextIsSound1;
+if(nextIsSound1){
+var halfPhase=currentPhaseDuration;
+currentPhaseDuration=halfPhase*2;
+}
 updateStats();
 }
 
@@ -156,7 +181,7 @@ currentMode=m;
 document.getElementById('modeShake').className='mode-btn'+(m==='shake'?' active':'');
 document.getElementById('modeTap').className='mode-btn'+(m==='tap'?' active':'');
 document.getElementById('modeKeys').className='mode-btn'+(m==='keys'?' active':'');
-dominantAxis=null;lastDirection=0;halfPhaseCount=0;tapCount=0;
+hitCount=0;lastHitTime=0;nextIsSound1=true;
 }
 
 function handleMotion(event){
@@ -165,68 +190,11 @@ var acc=event.accelerationIncludingGravity;
 if(!acc)acc=event.acceleration;
 if(!acc)return;
 var ax=acc.x||0,ay=acc.y||0,az=acc.z||0;
-var alpha=0.3;
-smoothAccel.x=smoothAccel.x*(1-alpha)+ax*alpha;
-smoothAccel.y=smoothAccel.y*(1-alpha)+ay*alpha;
-smoothAccel.z=smoothAccel.z*(1-alpha)+az*alpha;
-var dx=Math.abs(ax-lastAccel.x),dy=Math.abs(ay-lastAccel.y),dz=Math.abs(az-lastAccel.z);
-lastAccel={x:ax,y:ay,z:az};
-if(!dominantAxis){
-var mag=Math.sqrt(dx*dx+dy*dy+dz*dz);
-if(mag>SHAKE_THRESHOLD){
-if(dx>=dy&&dx>=dz)dominantAxis='x';
-else if(dy>=dx&&dy>=dz)dominantAxis='y';
-else dominantAxis='z';
+var mag=Math.sqrt(ax*ax+ay*ay+(az-9.8)*(az-9.8));
+targetAngle=Math.max(-1,Math.min(1,(ax)/15));
+if(mag>HIT_THRESHOLD){
+onHit();
 }
-if(!dominantAxis)return;
-}
-var val=0;
-if(dominantAxis==='x')val=smoothAccel.x;
-else if(dominantAxis==='y')val=smoothAccel.y;
-else val=smoothAccel.z-9.8;
-targetAngle=Math.max(-1,Math.min(1,val/15));
-var direction=val>1?1:(val<-1?-1:0);
-if(direction===0)return;
-if(lastDirection!==0&&direction!==lastDirection){
-var now=performance.now();
-var halfDur=now-phaseStartTime;
-if(halfDur>40){
-halfPhaseCount++;
-if(halfPhaseCount%2===1){triggerHit(halfDur*2)}
-phaseStartTime=now;
-}
-}
-if(direction!==0)lastDirection=direction;
-}
-
-function handleTap(){
-if(!isRunning||currentMode!=='tap')return;
-var now=performance.now();
-tapCount++;
-targetAngle=(tapCount%2===0)?0.7:-0.7;
-setTimeout(function(){targetAngle=0},150);
-if(tapCount>=2){
-var dur=now-tapPhaseStart;
-triggerHit(dur);
-}
-tapPhaseStart=now;
-}
-
-var kbDir=0,kbPhaseStart=0,kbHalfCount=0;
-function handleKeySwing(dir){
-if(!isRunning||currentMode!=='keys')return;
-var now=performance.now();
-targetAngle=dir*0.7;
-setTimeout(function(){targetAngle=0},200);
-if(kbDir!==0&&dir!==kbDir){
-var halfDur=now-kbPhaseStart;
-if(halfDur>40){
-kbHalfCount++;
-if(kbHalfCount%2===1){triggerHit(halfDur*2)}
-}
-}
-kbPhaseStart=now;
-kbDir=dir;
 }
 
 function updateStats(){
@@ -298,17 +266,16 @@ requestAnimationFrame(drawViz);
 async function start(){
 var btn=document.getElementById('btnStart');
 var status=document.getElementById('status');
-if(isRunning){isRunning=false;btn.textContent='START';btn.classList.remove('active');status.textContent='';if(pendingSound){clearTimeout(pendingSound);pendingSound=null}dominantAxis=null;return}
+if(isRunning){isRunning=false;btn.textContent='START';btn.classList.remove('active');status.textContent='';if(pendingSound){clearTimeout(pendingSound);pendingSound=null}return}
 status.textContent='Zavantazhennia...';
 try{if(!audioCtx)await initAudio();if(audioCtx.state==='suspended')await audioCtx.resume()}catch(e){status.textContent='Audio error: '+e.message;return}
 if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
 try{var perm=await DeviceMotionEvent.requestPermission();if(perm!=='granted'){status.textContent='Motion denied';return}}catch(e){status.textContent='Perm error: '+e.message;return}
 }
-isRunning=true;hitCount=0;halfPhaseCount=0;dominantAxis=null;lastDirection=0;
-phaseStartTime=performance.now();timelineClips=[];timelineStartTime=0;
-currentPhaseDuration=NORMAL_PHASE_MS;tapCount=0;tapPhaseStart=0;kbHalfCount=0;kbDir=0;
+isRunning=true;hitCount=0;lastHitTime=0;nextIsSound1=true;
+timelineClips=[];timelineStartTime=0;currentPhaseDuration=NORMAL_PHASE_MS;
 btn.textContent='STOP';btn.classList.add('active');
-status.textContent='Khytai telefon / tap / keys';
+status.textContent='Khytai / tap / keys';
 updateStats();
 }
 
@@ -321,12 +288,19 @@ if(!audioCtx)initAudio().then(function(){playSound2()});else playSound2();
 });
 document.addEventListener('click',function(e){
 if(e.target.closest('.btn-start')||e.target.closest('.btn-test')||e.target.closest('.mode-btn'))return;
-handleTap();
+if(!isRunning||currentMode!=='tap')return;
+targetAngle=(hitCount%2===0)?0.7:-0.7;
+setTimeout(function(){targetAngle=0},150);
+onHit();
 });
 window.addEventListener('devicemotion',handleMotion,true);
 window.addEventListener('keydown',function(e){
-if(e.key==='ArrowLeft')handleKeySwing(-1);
-else if(e.key==='ArrowRight')handleKeySwing(1);
+if(!isRunning||currentMode!=='keys')return;
+if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+targetAngle=e.key==='ArrowRight'?0.7:-0.7;
+setTimeout(function(){targetAngle=0},200);
+onHit();
+}
 });
 window.addEventListener('resize',resizeCanvas);
 resizeCanvas();drawViz();
