@@ -128,7 +128,7 @@ var now=performance.now();var hd=now-phaseStartTime;
 if(hd>60){halfPhaseCount++;if(halfPhaseCount%2===1){
 currentPhaseDuration=Math.max(MIN_PHASE_MS,Math.min(MAX_PHASE_MS,hd*2));
 var delay=computeDelay(currentPhaseDuration);
-playSound1();scheduleSound2(delay);hitCount++;
+hitCount++;
 }phaseStartTime=now}
 }
 if(dir!==0)lastDirection=dir;
@@ -160,7 +160,7 @@ gravityInited=false;calSamples=0;calSumX=0;calSumY=0;calSumZ=0;
 
 document.getElementById('startBtn').addEventListener('click',activate);
 window.addEventListener('devicemotion',handleMotion,true);
-window.addEventListener('deviceorientation',function(ev){if(!isRunning||ev.gamma===null)return;var g=ev.gamma;var d=g>2?1:g<-2?-1:0;if(d===0)return;if(gammaDir!==0&&d!==gammaDir){var now=performance.now();var dur=now-gammaPhaseStart;if(dur>60){if(d===1)playVideo(1,dur);else playVideo(2,dur);gammaPhaseStart=now}}if(d!==0)gammaDir=d},true);
+window.addEventListener('deviceorientation',function(ev){if(!isRunning||ev.gamma===null)return;var g=ev.gamma;var d=g>2?1:g<-2?-1:0;if(d===0)return;if(gammaDir!==0&&d!==gammaDir){var now=performance.now();var dur=now-gammaPhaseStart;if(dur>60){if(d===1){playVideo(1,dur);playSound1()}else{playVideo(2,dur);playSound2()}gammaPhaseStart=now}}if(d!==0)gammaDir=d},true);
 
 window.addEventListener('keydown',function(e){
 if(!isRunning)return;if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
