@@ -25,6 +25,19 @@ body{min-height:100dvh}
 <h1 class="main-title" id="mainTitle" style="position:fixed;top:8vh;left:50%;transform:translateX(-50%);z-index:10;font-family:system-ui,sans-serif;font-size:46px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:4px;margin:0">КАЛАТАЛО</h1>
 <button class="start-btn" id="startBtn"><strong style="font-size:44px;display:block;margin-bottom:12px">Натисніть тут і почніть калатати</strong><span style="font-size:30px;display:block;opacity:0.7">(махати телефоном в сторони)</span><span style="font-size:24px;display:block;margin-top:10px;color:#e53935;opacity:0.85;line-height:1.5">ℹ️ Якщо після цього буде якесь попередження, то це запит дозволу на використання датчику руху, тицьніть і дайте його, а потім калатайте на здоровля</span></button>
 <script>
+(function(){
+var m=document.querySelector('meta[name="viewport"]');
+if(m)m.setAttribute('content','width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no');
+document.documentElement.style.zoom='1';
+document.documentElement.style.webkitTextSizeAdjust='none';
+document.documentElement.style.MozTextSizeAdjust='none';
+document.documentElement.style.textSizeAdjust='none';
+document.documentElement.style.fontSize='16px';
+document.body.style.fontSize='16px';
+document.body.style.webkitTextSizeAdjust='none';
+})();
+</script>
+<script>
 
 
 
