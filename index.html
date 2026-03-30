@@ -23,6 +23,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .stat-value{font-size:18px;font-weight:700;color:var(--accent);line-height:1}
 .stat-value.warn{color:var(--warn)}
 .stat-label{font-size:8px;color:var(--muted);margin-top:4px;letter-spacing:1px;text-transform:uppercase}
+.debug-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:16px;font-size:10px;color:var(--muted);text-align:center;letter-spacing:0.5px}
 .timeline{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:16px}
 .timeline-header{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
 .timeline-track{height:40px;background:var(--bg);border-radius:6px;position:relative;overflow:hidden}
@@ -65,6 +66,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 <div class="stat"><div class="stat-value" id="statSpeed">--</div><div class="stat-label">Speed</div></div>
 <div class="stat"><div class="stat-value" id="statHits">0</div><div class="stat-label">Hits</div></div>
 </div>
+<div class="debug-bar" id="debugBar">accel: -- | mag: -- | thr: --</div>
 <div class="timeline">
 <div class="timeline-header">Timeline</div>
 <div class="timeline-track" id="timelineTrack"></div>
@@ -88,8 +90,8 @@ var NORMAL_PHASE_MS=467;
 var CLIP_DURATION_MS=233;
 var MIN_PHASE_MS=100;
 var MAX_PHASE_MS=3000;
-var HIT_THRESHOLD=15;
-var HIT_COOLDOWN_MS=80;
+var HIT_THRESHOLD=6;
+var HIT_COOLDOWN_MS=120;
 var audioCtx=null;
 var buffer1=null;
 var buffer2=null;
@@ -106,6 +108,12 @@ var pendulumAngle=0;
 var targetAngle=0;
 var lastHitTime=0;
 var nextIsSound1=true;
+var useRawAccel=false;
+var gravityX=0,gravityY=0,gravityZ=0;
+var gravityInited=false;
+var sampleCount=0;
+var sumX=0,sumY=0,sumZ=0;
+var CALIBRATION_SAMPLES=30;
 
 function b64toArrayBuffer(b64){var bin=atob(b64);var len=bin.length;var bytes=new Uint8Array(len);for(var i=0;i<len;i++){bytes[i]=bin.charCodeAt(i)}return bytes.buffer}
 
@@ -169,10 +177,6 @@ if(pendingSound){clearTimeout(pendingSound);pendingSound=null}
 playSound2();
 }
 nextIsSound1=!nextIsSound1;
-if(nextIsSound1){
-var halfPhase=currentPhaseDuration;
-currentPhaseDuration=halfPhase*2;
-}
 updateStats();
 }
 
@@ -185,13 +189,44 @@ hitCount=0;lastHitTime=0;nextIsSound1=true;
 }
 
 function handleMotion(event){
+var acc=event.acceleration;
+var accG=event.accelerationIncludingGravity;
+var ax,ay,az;
+
+if(acc&&(acc.x!==null||acc.y!==null||acc.z!==null)){
+ax=acc.x||0;ay=acc.y||0;az=acc.z||0;
+useRawAccel=false;
+}else if(accG){
+useRawAccel=true;
+var rx=accG.x||0,ry=accG.y||0,rz=accG.z||0;
+if(!gravityInited){
+sampleCount++;
+sumX+=rx;sumY+=ry;sumZ+=rz;
+if(sampleCount>=CALIBRATION_SAMPLES){
+gravityX=sumX/sampleCount;
+gravityY=sumY/sampleCount;
+gravityZ=sumZ/sampleCount;
+gravityInited=true;
+}
+return;
+}
+var alpha=0.05;
+gravityX=gravityX*(1-alpha)+rx*alpha;
+gravityY=gravityY*(1-alpha)+ry*alpha;
+gravityZ=gravityZ*(1-alpha)+rz*alpha;
+ax=rx-gravityX;
+ay=ry-gravityY;
+az=rz-gravityZ;
+}else{return}
+
+var mag=Math.sqrt(ax*ax+ay*ay+az*az);
+
+var db=document.getElementById('debugBar');
+if(db)db.textContent='x:'+ax.toFixed(1)+' y:'+ay.toFixed(1)+' z:'+az.toFixed(1)+' | mag:'+mag.toFixed(1)+' | thr:'+HIT_THRESHOLD+(useRawAccel?' [raw-grav]':' [clean]');
+
+targetAngle=Math.max(-1,Math.min(1,ax/10));
+
 if(!isRunning||currentMode!=='shake')return;
-var acc=event.accelerationIncludingGravity;
-if(!acc)acc=event.acceleration;
-if(!acc)return;
-var ax=acc.x||0,ay=acc.y||0,az=acc.z||0;
-var mag=Math.sqrt(ax*ax+ay*ay+(az-9.8)*(az-9.8));
-targetAngle=Math.max(-1,Math.min(1,(ax)/15));
 if(mag>HIT_THRESHOLD){
 onHit();
 }
@@ -274,8 +309,10 @@ try{var perm=await DeviceMotionEvent.requestPermission();if(perm!=='granted'){st
 }
 isRunning=true;hitCount=0;lastHitTime=0;nextIsSound1=true;
 timelineClips=[];timelineStartTime=0;currentPhaseDuration=NORMAL_PHASE_MS;
+gravityInited=false;sampleCount=0;sumX=0;sumY=0;sumZ=0;
 btn.textContent='STOP';btn.classList.add('active');
-status.textContent='Khytai / tap / keys';
+status.textContent='Kalibruvannia... ne ruhaj!';
+setTimeout(function(){if(isRunning)status.textContent='Khytai / tap / keys'},1500);
 updateStats();
 }
 
